@@ -1975,6 +1975,7 @@ settings_override_set_blocks(struct settings_mmap *mmap,
 		return -1;
 	}
 
+	/* The parsed override can outlive this configuration map. */
 	const char **block_names = p_new(set->pool, const char *, count + 1);
 	for (i = 0; i < count; i++) {
 		memcpy(&block_idx, blocks, sizeof(block_idx));
@@ -1987,9 +1988,10 @@ settings_override_set_blocks(struct settings_mmap *mmap,
 			return -1;
 		}
 
-		block_names[i] =
+		const char *name =
 			CONST_PTR_OFFSET(mmap->all_keys_base,
 					 mmap->block_names_rel_offsets[block_idx]);
+		block_names[i] = p_strdup(set->pool, name);
 	}
 	set->block_names = block_names;
 	return 0;

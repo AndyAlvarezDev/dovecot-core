@@ -587,11 +587,14 @@ static void test_config_dump_full_groups(void)
 static void test_config_dump_full_overrides(void)
 {
 	test_begin("config dump full - overrides");
-	struct settings_root *root = test_settings_read(NULL, "imap");
+	int fd = test_config_dump();
+	struct settings_root *root = settings_root_init();
 	settings_root_override(root, "namespace/inbox/mailbox/foo/key",
 			       "override-inbox-foo",
 			       SETTINGS_OVERRIDE_TYPE_CLI_PARAM);
 	settings_root_override(root, "mailbox/bar/key", "override-bar",
+			       SETTINGS_OVERRIDE_TYPE_CLI_PARAM);
+	settings_root_override(root, "*/key_named", "override-named",
 			       SETTINGS_OVERRIDE_TYPE_CLI_PARAM);
 	struct event *event = test_event_create(root);
 
@@ -600,12 +603,21 @@ static void test_config_dump_full_overrides(void)
 	struct event *ns_other = event_create(event);
 	settings_event_add_list_filter_name(ns_other, "namespace", "other");
 
-	test_key(ns_inbox, "mailbox", "foo", key, "override-inbox-foo");
-	test_key(ns_other, "mailbox", "foo", key, "any-foo");
-	test_key(ns_inbox, "mailbox", "bar", key, "override-bar");
-	test_key(ns_inbox, NULL, NULL, key, "inbox");
-	test_key(event, NULL, NULL, key, "global");
+	for (unsigned int i = 0; i < 3; i++) {
+		const char *const *specific_protocols;
+		const char *error;
+		if (settings_read(root, fd, "(test)", NULL, "imap", 0,
+				  &specific_protocols, &error) < 0)
+			i_fatal("settings_read(): %s", error);
+		test_key(ns_inbox, "mailbox", "foo", key, "override-inbox-foo");
+		test_key(ns_other, "mailbox", "foo", key, "any-foo");
+		test_key(ns_inbox, "mailbox", "bar", key, "override-bar");
+		test_key(ns_inbox, NULL, NULL, key, "inbox");
+		test_key(event, NULL, NULL, key, "global");
+		test_key(event, "named", NULL, key_named, "override-named");
+	}
 
+	i_close_fd(&fd);
 	event_unref(&ns_inbox);
 	event_unref(&ns_other);
 	event_unref(&event);
